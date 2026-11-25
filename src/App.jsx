@@ -1,61 +1,696 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { LayoutDashboard, ArrowLeftRight, Wallet, ChartNoAxesCombined, Target, Settings, Search, Bell, Plus, Download, MoreHorizontal, ShoppingBag, Coffee, Car, House, HeartPulse, Film, CircleDollarSign, ArrowUpRight, ArrowDownRight, Menu, X, Trash2, Pencil, Save } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
+import React, { useState, useEffect } from "react";
 
-const seedTransactions = [
-  { id: 1, name: 'Whole Foods Market', category: 'Groceries', date: 'Nov 24, 2026', amount: 86.4, icon: '🛒', type: 'expense' },
-  { id: 2, name: 'Salary Deposit', category: 'Income', date: 'Nov 23, 2026', amount: 3200, icon: '💼', type: 'income' },
-  { id: 3, name: 'Uber Ride', category: 'Transport', date: 'Nov 22, 2026', amount: 24.8, icon: '🚗', type: 'expense' },
-  { id: 4, name: 'Netflix Subscription', category: 'Entertainment', date: 'Nov 21, 2026', amount: 15.99, icon: '🎬', type: 'expense' },
-  { id: 5, name: 'Coffee House', category: 'Dining', date: 'Nov 20, 2026', amount: 8.5, icon: '☕', type: 'expense' },
-  { id: 6, name: 'Electricity Bill', category: 'Bills', date: 'Nov 19, 2026', amount: 74.2, icon: '⚡', type: 'expense' },
-];
-const chartData = [{day:'01',income:800,expense:500},{day:'05',income:1300,expense:900},{day:'09',income:950,expense:700},{day:'13',income:1700,expense:1000},{day:'17',income:1100,expense:850},{day:'21',income:1800,expense:1200},{day:'25',income:1250,expense:950},{day:'29',income:1450,expense:800}];
-const categoryIcons = { Groceries: ShoppingBag, Dining: Coffee, Transport: Car, Bills: House, Entertainment: Film, Health: HeartPulse, Shopping: ShoppingBag, Income: CircleDollarSign };
-const colors = ['#4169e1','#22a06b','#8b5cf6','#f59e0b','#94a3b8','#ec4899','#06b6d4'];
-const nav = [['Overview',LayoutDashboard],['Transactions',ArrowLeftRight],['Budgets',Wallet],['Savings goals',Target],['Reports',ChartNoAxesCombined]];
-const defaultBudgets = { Groceries: 400, Dining: 250, Transport: 200, Bills: 350, Entertainment: 150, Health: 150, Shopping: 300 };
-const money = n => '$' + Number(n || 0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-function load(key, fallback) { try { const x = JSON.parse(localStorage.getItem(key)); return x ?? fallback; } catch { return fallback; } }
+const ADMIN_EMAIL = "admin@expenseease.com";
+const ADMIN_PASSWORD = "Admin@123";
+
+const read = (key, fallback) => {
+  try {
+    return JSON.parse(localStorage.getItem(key)) ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const money = n =>
+  "₹" + Number(n || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 
 export default function App() {
-  const [transactions,setTransactions] = useState(() => load('ee_transactions',seedTransactions));
-  const [budgets,setBudgets] = useState(() => load('ee_budgets',defaultBudgets));
-  const [goal,setGoal] = useState(() => load('ee_goal',{name:'New laptop',target:2500,saved:1625}));
-  const [active,setActive] = useState('Overview');
-  const [search,setSearch] = useState('');
-  const [showForm,setShowForm] = useState(false);
-  const [mobileNav,setMobileNav] = useState(false);
-  const [form,setForm] = useState({name:'',category:'Groceries',amount:'',type:'expense'});
-  const [budgetEdit,setBudgetEdit] = useState(false);
-  const [goalEdit,setGoalEdit] = useState(false);
-  useEffect(()=>localStorage.setItem('ee_transactions',JSON.stringify(transactions)),[transactions]);
-  useEffect(()=>localStorage.setItem('ee_budgets',JSON.stringify(budgets)),[budgets]);
-  useEffect(()=>localStorage.setItem('ee_goal',JSON.stringify(goal)),[goal]);
-  const filtered = useMemo(()=>transactions.filter(t=>(t.name+' '+t.category+' '+t.type).toLowerCase().includes(search.toLowerCase())),[transactions,search]);
-  const income = transactions.filter(t=>t.type==='income').reduce((a,t)=>a+t.amount,0);
-  const expenses = transactions.filter(t=>t.type==='expense').reduce((a,t)=>a+t.amount,0);
-  const spendByCategory = Object.keys(budgets).map((name)=>({name,spent:transactions.filter(t=>t.type==='expense'&&t.category===name).reduce((s,t)=>s+t.amount,0),limit:Number(budgets[name]||0)}));
-  const pieData = Object.entries(transactions.filter(t=>t.type==='expense').reduce((acc,t)=>{acc[t.category]=(acc[t.category]||0)+t.amount;return acc;},{})).map(([name,value])=>({name,value}));
-  const addTransaction = e => { e.preventDefault(); if(!form.name||!form.amount||Number(form.amount)<=0)return; setTransactions([{id:Date.now(),name:form.name,category:form.category,date:new Date().toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'}),amount:Number(form.amount),type:form.type,icon:form.type==='income'?'💰':'🧾'},...transactions]);setForm({name:'',category:'Groceries',amount:'',type:'expense'});setShowForm(false); };
-  const deleteTransaction = id => setTransactions(transactions.filter(t=>t.id!==id));
-  const exportCSV = () => { const rows=[['Name','Category','Date','Type','Amount'],...transactions.map(t=>[t.name,t.category,t.date,t.type,t.amount])];const csv=rows.map(r=>r.map(x=>'"'+String(x).replaceAll('"','""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='expenseease-transactions.csv';a.click();URL.revokeObjectURL(a.href); };
-  const go = label => {setActive(label);setMobileNav(false);setSearch('');};
-  const heading = active==='Overview'?'Good morning, Jamie 👋':active;
-  const transactionTable = (showAll=false) => <div className="table-wrap"><table><thead><tr><th>TRANSACTION</th><th>CATEGORY</th><th>DATE</th><th>AMOUNT</th><th></th></tr></thead><tbody>{(showAll?filtered:filtered.slice(0,6)).map(t=>{const Icon=categoryIcons[t.category]||CircleDollarSign;return <tr key={t.id}><td><div className="transaction-name"><span className="transaction-icon">{t.icon||<Icon size={17}/>}</span><strong>{t.name}</strong></div></td><td><span className="category-tag">{t.category}</span></td><td className="date-cell">{t.date}</td><td className={`amount ${t.type==='income'?'income-amount':''}`}>{t.type==='income'?'+':'−'}{money(t.amount)}</td><td><button className="more-btn" onClick={()=>deleteTransaction(t.id)} title="Delete transaction"><Trash2 size={16}/></button></td></tr>})}</tbody></table>{filtered.length===0&&<div className="empty">No transactions match your search.</div>}</div>;
-  return <div className="app-shell">
-    <aside className={`sidebar ${mobileNav?'open':''}`}><div className="brand"><span className="brand-mark">E</span> ExpenseEase</div><button className="nav-close" onClick={()=>setMobileNav(false)}><X/></button><div className="nav-label">MENU</div><nav>{nav.map(([label,Icon])=><button key={label} className={`nav-item ${active===label?'active':''}`} onClick={()=>go(label)}><Icon size={18}/><span>{label}</span></button>)}</nav><div className="sidebar-bottom"><div className="nav-label">PREFERENCES</div><button className="nav-item" onClick={()=>go('Settings')}><Settings size={18}/><span>Settings</span></button><div className="upgrade"><div className="upgrade-icon">✦</div><strong>Stay on top of it</strong><p>Build better money habits, one day at a time.</p><button onClick={()=>go('Reports')}>Explore insights <ArrowUpRight size={14}/></button></div><div className="profile"><div className="avatar">JD</div><div><strong>Jamie Davis</strong><small>Personal account</small></div><MoreHorizontal size={18}/></div></div></aside>
-    {mobileNav&&<div className="overlay" onClick={()=>setMobileNav(false)}/>}
-    <main className="main-area"><header className="topbar"><button className="menu-btn" onClick={()=>setMobileNav(true)}><Menu/></button><div className="breadcrumb">Workspace <span>/</span> <strong>{active}</strong></div><div className="top-actions"><button className="icon-btn notification"><Bell size={18}/><i/></button><div className="avatar top-avatar">JD</div></div></header>
-    <div className="content"><div className="page-heading"><div><p className="eyebrow">YOUR FINANCES AT A GLANCE</p><h1>{heading}</h1><p className="subtitle">Here's what's happening with your money this month.</p></div><div className="heading-actions"><button className="btn secondary" onClick={exportCSV}><Download size={16}/> Export</button><button className="btn primary" onClick={()=>setShowForm(true)}><Plus size={17}/> Add transaction</button></div></div>
-    {(active==='Overview'||active==='Reports')&&<section className="stats-grid"><div className="stat-card balance-card"><div className="stat-top"><span>Total balance</span><span className="stat-icon"><Wallet size={18}/></span></div><h2>{money(income-expenses)}</h2><div className="stat-foot"><span className="trend positive"><ArrowUpRight size={14}/> Net balance</span><span>income minus expenses</span></div><div className="balance-decoration"/></div><div className="stat-card"><div className="stat-top"><span>Total income</span><span className="stat-icon green"><ArrowDownRight size={18}/></span></div><h2>{money(income)}</h2><div className="stat-foot"><span className="trend positive">Income</span><span>recorded total</span></div></div><div className="stat-card"><div className="stat-top"><span>Total expenses</span><span className="stat-icon red"><ArrowUpRight size={18}/></span></div><h2>{money(expenses)}</h2><div className="stat-foot"><span className="trend negative">Expenses</span><span>recorded total</span></div></div><div className="stat-card"><div className="stat-top"><span>Monthly savings</span><span className="stat-icon purple"><Target size={18}/></span></div><h2>{money(Math.max(0,income-expenses))}</h2><div className="stat-foot"><span className="trend positive">Net savings</span><span>of your income</span></div></div></section>}
-    {active==='Overview'&&<><section className="dashboard-grid"><div className="panel spending-panel"><div className="panel-header"><div><h3>Cash flow</h3><p>Income vs expenses</p></div></div><div className="chart-legend"><span><i className="legend-dot income-dot"/>Income</span><span><i className="legend-dot expense-dot"/>Expenses</span></div><div className="area-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData} margin={{top:8,right:8,left:-22,bottom:0}}><defs><linearGradient id="incomeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4169e1" stopOpacity=".2"/><stop offset="95%" stopColor="#4169e1" stopOpacity="0"/></linearGradient><linearGradient id="expenseFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#64748b" stopOpacity=".12"/><stop offset="95%" stopColor="#64748b" stopOpacity="0"/></linearGradient></defs><CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#e8edf4"/><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#94a3b8'}}/><YAxis axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#94a3b8'}}/><Tooltip formatter={v=>money(v)}/><Area type="monotone" dataKey="income" stroke="#4169e1" strokeWidth={2.5} fill="url(#incomeFill)"/><Area type="monotone" dataKey="expense" stroke="#64748b" strokeWidth={2} strokeDasharray="5 4" fill="url(#expenseFill)"/></AreaChart></ResponsiveContainer></div></div><div className="panel category-panel"><div className="panel-header"><div><h3>Spending breakdown</h3><p>By category</p></div></div>{pieData.length?<><div className="donut-wrap"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieData} dataKey="value" nameKey="name" innerRadius={66} outerRadius={92} paddingAngle={3} stroke="none">{pieData.map((c,i)=><Cell key={i} fill={colors[i%colors.length]}/>)}</Pie><Tooltip formatter={v=>money(v)}/></PieChart></ResponsiveContainer><div className="donut-center"><strong>{money(expenses)}</strong><small>Expenses</small></div></div><div className="category-legend">{pieData.map((c,i)=><div key={c.name}><span><i style={{background:colors[i%colors.length]}}/>{c.name}</span><strong>{money(c.value)}</strong></div>)}</div></>:<p>No expense data yet.</p>}</div></section><section className="panel transactions-panel"><div className="panel-header transaction-header"><div><h3>Recent transactions</h3><p>Your latest activity</p></div><div className="transaction-actions"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search transactions"/></div><button className="text-btn" onClick={()=>go('Transactions')}>View all <ArrowUpRight size={15}/></button></div></div>{transactionTable()}</section><section className="bottom-grid"><div className="panel budget-panel"><div className="panel-header"><div><h3>Monthly budget</h3><p>Track your spending limits</p></div><button className="text-btn" onClick={()=>go('Budgets')}>Manage <ArrowUpRight size={15}/></button></div><div className="budget-total"><strong>{money(expenses)}</strong><span>of {money(Object.values(budgets).reduce((a,v)=>a+Number(v),0))} budget</span></div><div className="progress"><div style={{width:`${Math.min(100,expenses/Math.max(1,Object.values(budgets).reduce((a,v)=>a+Number(v),0))*100)}%`}}/></div><div className="budget-foot"><span>{Math.round(expenses/Math.max(1,Object.values(budgets).reduce((a,v)=>a+Number(v),0))*100)}% used</span><span>{money(Math.max(0,Object.values(budgets).reduce((a,v)=>a+Number(v),0)-expenses))} remaining</span></div></div><div className="panel goal-panel"><div className="panel-header"><div><h3>Savings goal</h3><p>{goal.name}</p></div><span className="goal-icon"><Target size={18}/></span></div><div className="goal-amount"><strong>{money(goal.saved)}</strong><span>of {money(goal.target)}</span></div><div className="progress goal-progress"><div style={{width:`${Math.min(100,goal.saved/Math.max(1,goal.target)*100)}%`}}/></div><div className="budget-foot"><span>{Math.round(goal.saved/Math.max(1,goal.target)*100)}% completed</span><span>Goal</span></div></div></section></>}
-    {active==='Transactions'&&<section className="panel transactions-panel"><div className="panel-header transaction-header"><div><h3>All transactions</h3><p>Manage and search your income and expenses</p></div><div className="transaction-actions"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search transactions"/></div><button className="text-btn" onClick={exportCSV}><Download size={15}/> CSV</button></div></div>{transactionTable(true)}</section>}
-    {active==='Budgets'&&<section className="panel budget-panel"><div className="panel-header"><div><h3>Category budgets</h3><p>Adjust monthly limits and monitor spending.</p></div><button className="btn secondary" onClick={()=>setBudgetEdit(!budgetEdit)}>{budgetEdit?<><Save size={16}/> Done</>:<><Pencil size={16}/> Edit limits</>}</button></div><div className="budget-total"><strong>{money(expenses)}</strong><span>total spent this month</span></div>{spendByCategory.map((b,i)=><div className="budget-row" key={b.name}><div className="budget-row-head"><strong>{b.name}</strong><span>{money(b.spent)} / {money(b.limit)}</span></div>{budgetEdit&&<input className="budget-input" type="number" min="0" value={budgets[b.name]} onChange={e=>setBudgets({...budgets,[b.name]:e.target.value})} aria-label={`${b.name} budget limit`}/>}<div className="progress"><div style={{width:`${Math.min(100,b.spent/Math.max(1,b.limit)*100)}%`,background:colors[i%colors.length]}}/></div><small>{b.limit?Math.round(b.spent/b.limit*100):0}% used · {money(Math.max(0,b.limit-b.spent))} remaining</small></div>)}</section>}
-    {active==='Savings goals'&&<section className="panel goal-panel"><div className="panel-header"><div><h3>Savings goal</h3><p>Keep track of what you're saving for.</p></div><button className="btn secondary" onClick={()=>setGoalEdit(!goalEdit)}>{goalEdit?<><Save size={16}/> Save</>:<><Pencil size={16}/> Edit goal</>}</button></div>{goalEdit?<div className="goal-edit-form"><label>Goal name<input value={goal.name} onChange={e=>setGoal({...goal,name:e.target.value})}/></label><label>Target amount<input type="number" min="1" value={goal.target} onChange={e=>setGoal({...goal,target:Number(e.target.value)})}/></label><label>Amount saved<input type="number" min="0" value={goal.saved} onChange={e=>setGoal({...goal,saved:Number(e.target.value)})}/></label></div>:<><div className="goal-amount"><strong>{money(goal.saved)}</strong><span>saved toward {money(goal.target)}</span></div><div className="progress goal-progress"><div style={{width:`${Math.min(100,goal.saved/Math.max(1,goal.target)*100)}%`}}/></div><div className="budget-foot"><span>{Math.round(goal.saved/Math.max(1,goal.target)*100)}% complete</span><span>{money(Math.max(0,goal.target-goal.saved))} to go</span></div></>}</section>}
-    {active==='Reports'&&<><section className="dashboard-grid"><div className="panel spending-panel"><div className="panel-header"><div><h3>Income and expenses</h3><p>Illustrative monthly trend</p></div></div><div className="area-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData}><CartesianGrid strokeDasharray="3 5" vertical={false}/><XAxis dataKey="day"/><YAxis/><Tooltip formatter={v=>money(v)}/><Bar dataKey="income" fill="#4169e1" radius={[4,4,0,0]}/><Bar dataKey="expense" fill="#94a3b8" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer></div></div><div className="panel category-panel"><div className="panel-header"><div><h3>Category totals</h3><p>Recorded expenses</p></div></div>{pieData.map((c,i)=><div className="category-legend" key={c.name}><div><span><i style={{background:colors[i%colors.length]}}/>{c.name}</span><strong>{money(c.value)}</strong></div></div>)}</div></section><section className="panel transactions-panel"><div className="panel-header"><div><h3>Report transactions</h3><p>Download the CSV for further analysis.</p></div><button className="btn secondary" onClick={exportCSV}><Download size={16}/> Export CSV</button></div>{transactionTable(true)}</section></>}
-    {active==='Settings'&&<section className="panel"><div className="panel-header"><div><h3>Settings</h3><p>ExpenseEase preferences</p></div></div><p>Your transactions, budgets and goal are saved locally in this browser.</p><button className="btn secondary" onClick={()=>{if(confirm('Reset your ExpenseEase data to the starter data?')){setTransactions(seedTransactions);setBudgets(defaultBudgets);setGoal({name:'New laptop',target:2500,saved:1625});}}}>Reset demo data</button></section>}
-    <footer>© 2026 ExpenseEase <span>Made for mindful money management.</span></footer></div></main>
-    {showForm&&<div className="modal-backdrop" onClick={()=>setShowForm(false)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="modal-header"><h2>Add transaction</h2><button className="more-btn" onClick={()=>setShowForm(false)}><X/></button></div><form onSubmit={addTransaction}><label>Transaction name<input autoFocus placeholder="e.g. Grocery shopping" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} required/></label><label>Amount<input type="number" min="0.01" step="0.01" placeholder="0.00" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} required/></label><label>Type<select value={form.type} onChange={e=>setForm({...form,type:e.target.value,category:e.target.value==='income'?'Income':'Groceries'})}><option value="expense">Expense</option><option value="income">Income</option></select></label><label>Category<select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{(form.type==='income'?['Income']:['Groceries','Dining','Transport','Bills','Entertainment','Health','Shopping']).map(c=><option key={c} value={c}>{c}</option>)}</select></label><div className="modal-actions"><button type="button" className="btn secondary" onClick={()=>setShowForm(false)}>Cancel</button><button type="submit" className="btn primary">Save transaction</button></div></form></div></div>}
-  </div>;
+  const [users, setUsers] = useState(() => read("ee_users", []));
+  const [current, setCurrent] = useState(() => read("ee_current", null));
+  const [transactions, setTransactions] = useState([]);
+  const [mode, setMode] = useState("login");
+  const [page, setPage] = useState("Overview");
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [form, setForm] = useState({
+    title: "",
+    amount: "",
+    type: "expense",
+    category: "Food"
+  });
+
+  const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem("ee_users", JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem("ee_current", JSON.stringify(current));
+  }, [current]);
+
+  useEffect(() => {
+    if (current?.role === "user") {
+      setTransactions(
+        read("ee_transactions_" + current.email, [])
+      );
+    } else {
+      setTransactions([]);
+    }
+  }, [current]);
+
+  useEffect(() => {
+    if (current?.role === "user") {
+      localStorage.setItem(
+        "ee_transactions_" + current.email,
+        JSON.stringify(transactions)
+      );
+    }
+  }, [transactions, current]);
+
+  const register = e => {
+    e.preventDefault();
+
+    if (users.some(u => u.email === email.toLowerCase())) {
+      alert("An account with this email already exists.");
+      return;
+    }
+
+    const newUser = {
+      name,
+      email: email.toLowerCase(),
+      password,
+      role: "user",
+      active: true
+    };
+
+    const updated = [...users, newUser];
+
+    setUsers(updated);
+    setCurrent(newUser);
+    setPage("Overview");
+  };
+
+  const login = e => {
+    e.preventDefault();
+
+    if (
+      email.toLowerCase() === ADMIN_EMAIL &&
+      password === ADMIN_PASSWORD
+    ) {
+      setCurrent({
+        name: "Administrator",
+        email: ADMIN_EMAIL,
+        role: "admin"
+      });
+      return;
+    }
+
+    const found = users.find(
+      u =>
+        u.email === email.toLowerCase() &&
+        u.password === password
+    );
+
+    if (!found) {
+      alert("Invalid email or password.");
+      return;
+    }
+
+    if (!found.active) {
+      alert("Your account has been deactivated.");
+      return;
+    }
+
+    setCurrent(found);
+    setPage("Overview");
+  };
+
+  const logout = () => {
+    setCurrent(null);
+    setEmail("");
+    setPassword("");
+    setName("");
+    setMode("login");
+  };
+
+  const addTransaction = e => {
+    e.preventDefault();
+
+    if (!form.title || Number(form.amount) <= 0) {
+      alert("Enter a valid transaction and amount.");
+      return;
+    }
+
+    const item = {
+      id: Date.now(),
+      title: form.title,
+      amount: Number(form.amount),
+      type: form.type,
+      category: form.category,
+      date: new Date().toLocaleDateString("en-IN")
+    };
+
+    setTransactions(prev => [item, ...prev]);
+
+    setForm({
+      title: "",
+      amount: "",
+      type: "expense",
+      category: "Food"
+    });
+
+    setShowForm(false);
+  };
+
+  const income = transactions
+    .filter(t => t.type === "income")
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const expenses = transactions
+    .filter(t => t.type === "expense")
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const allTransactions = users.flatMap(user =>
+    read("ee_transactions_" + user.email, []).map(t => ({
+      ...t,
+      owner: user.name,
+      email: user.email
+    }))
+  );
+
+  const totalIncome = allTransactions
+    .filter(t => t.type === "income")
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalExpenses = allTransactions
+    .filter(t => t.type === "expense")
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const deactivateUser = userEmail => {
+    setUsers(prev =>
+      prev.map(u =>
+        u.email === userEmail
+          ? { ...u, active: !u.active }
+          : u
+      )
+    );
+  };
+
+  const styles = {
+    page: {
+      minHeight: "100vh",
+      background: "#f4f6fb",
+      fontFamily: "Arial, sans-serif",
+      color: "#202943"
+    },
+    card: {
+      background: "white",
+      padding: "25px",
+      borderRadius: "15px",
+      boxShadow: "0 4px 18px #0000000d",
+      marginBottom: "20px"
+    },
+    button: {
+      background: "#4169e1",
+      color: "white",
+      border: "none",
+      borderRadius: "8px",
+      padding: "11px 18px",
+      cursor: "pointer",
+      fontWeight: "bold"
+    },
+    input: {
+      width: "100%",
+      boxSizing: "border-box",
+      padding: "12px",
+      margin: "8px 0 16px",
+      border: "1px solid #dce1eb",
+      borderRadius: "8px"
+    }
+  };
+
+  if (!current) {
+    return (
+      <div style={{
+        ...styles.page,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: "20px"
+      }}>
+        <div style={{
+          ...styles.card,
+          width: "100%",
+          maxWidth: "420px"
+        }}>
+          <h1 style={{ color: "#4169e1" }}>
+            ExpenseEase
+          </h1>
+
+          <p>Manage your money. Build better habits.</p>
+
+          <h2>
+            {mode === "login" ? "Welcome Back!" : "Create Account"}
+          </h2>
+
+          <form onSubmit={mode === "login" ? login : register}>
+            {mode === "register" && (
+              <>
+                <label>Full Name</label>
+                <input
+                  style={styles.input}
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  required
+                />
+              </>
+            )}
+
+            <label>Email Address</label>
+            <input
+              style={styles.input}
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+            />
+
+            <label>Password</label>
+            <input
+              style={styles.input}
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+            />
+
+            <button
+              style={{ ...styles.button, width: "100%" }}
+              type="submit"
+            >
+              {mode === "login" ? "Login" : "Register"}
+            </button>
+          </form>
+
+          <p style={{ marginTop: "20px" }}>
+            {mode === "login"
+              ? "Don't have an account?"
+              : "Already have an account?"}
+
+            <button
+              onClick={() =>
+                setMode(mode === "login" ? "register" : "login")
+              }
+              style={{
+                border: "none",
+                background: "none",
+                color: "#4169e1",
+                cursor: "pointer",
+                fontWeight: "bold"
+              }}
+            >
+              {mode === "login" ? " Register" : " Login"}
+            </button>
+          </p>
+
+          <hr />
+
+          <p style={{ fontSize: "13px", color: "#777" }}>
+            Admin demo login:<br />
+            Email: {ADMIN_EMAIL}<br />
+            Password: {ADMIN_PASSWORD}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.page}>
+      <header style={{
+        background: "#202d50",
+        color: "white",
+        padding: "18px 5%",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "12px"
+      }}>
+        <h2>💰 ExpenseEase</h2>
+
+        <div>
+          {current.name} &nbsp; | &nbsp;
+          {current.role === "admin" ? "Admin Portal" : "User Portal"}
+
+          <button
+            onClick={logout}
+            style={{
+              ...styles.button,
+              background: "#e05252",
+              marginLeft: "15px"
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      {current.role === "admin" ? (
+        <main style={{ padding: "30px 5%" }}>
+          <h1>Admin Dashboard</h1>
+          <p>Monitor and manage the ExpenseEase platform.</p>
+
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+            gap: "20px",
+            marginTop: "25px"
+          }}>
+            {[
+              ["Registered Users", users.length],
+              ["Total Transactions", allTransactions.length],
+              ["Platform Income", money(totalIncome)],
+              ["Platform Expenses", money(totalExpenses)]
+            ].map(([label, value]) => (
+              <div key={label} style={styles.card}>
+                <p>{label}</p>
+                <h2>{value}</h2>
+              </div>
+            ))}
+          </div>
+
+          <section style={styles.card}>
+            <h2>Registered Users</h2>
+
+            {users.length === 0 ? (
+              <p>No registered users yet.</p>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table width="100%" cellPadding="12">
+                  <thead>
+                    <tr>
+                      <th align="left">Name</th>
+                      <th align="left">Email</th>
+                      <th align="left">Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {users.map(user => (
+                      <tr key={user.email}>
+                        <td>{user.name}</td>
+                        <td>{user.email}</td>
+                        <td>
+                          {user.active ? "Active" : "Inactive"}
+                        </td>
+                        <td>
+                          <button
+                            style={{
+                              ...styles.button,
+                              background: user.active
+                                ? "#e05252"
+                                : "#22a06b"
+                            }}
+                            onClick={() => deactivateUser(user.email)}
+                          >
+                            {user.active ? "Deactivate" : "Activate"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section style={styles.card}>
+            <h2>Platform Transactions</h2>
+
+            {allTransactions.length === 0 ? (
+              <p>No transactions recorded yet.</p>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table width="100%" cellPadding="12">
+                  <thead>
+                    <tr>
+                      <th align="left">User</th>
+                      <th align="left">Transaction</th>
+                      <th align="left">Category</th>
+                      <th>Type</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {allTransactions.map(t => (
+                      <tr key={t.id}>
+                        <td>{t.owner}</td>
+                        <td>{t.title}</td>
+                        <td>{t.category}</td>
+                        <td>{t.type}</td>
+                        <td>{money(t.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </main>
+      ) : (
+        <>
+          <nav style={{
+            background: "white",
+            padding: "15px 5%",
+            display: "flex",
+            gap: "20px",
+            flexWrap: "wrap"
+          }}>
+            {["Overview", "Transactions"].map(item => (
+              <button
+                key={item}
+                onClick={() => setPage(item)}
+                style={{
+                  border: "none",
+                  background: "none",
+                  cursor: "pointer",
+                  color: page === item ? "#4169e1" : "#555",
+                  fontWeight: "bold"
+                }}
+              >
+                {item}
+              </button>
+            ))}
+          </nav>
+
+          <main style={{ padding: "30px 5%" }}>
+            <h1>Welcome, {current.name}! 👋</h1>
+            <p>Your personal finance dashboard.</p>
+
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))",
+              gap: "20px",
+              marginTop: "25px"
+            }}>
+              {[
+                ["Total Balance", money(income - expenses)],
+                ["Total Income", money(income)],
+                ["Total Expenses", money(expenses)],
+                ["Transactions", transactions.length]
+              ].map(([label, value]) => (
+                <div key={label} style={styles.card}>
+                  <p>{label}</p>
+                  <h2>{value}</h2>
+                </div>
+              ))}
+            </div>
+
+            {page === "Overview" && (
+              <section style={styles.card}>
+                <h2>Financial Summary</h2>
+                <p>Income: {money(income)}</p>
+                <p>Expenses: {money(expenses)}</p>
+                <p>Available balance: {money(income - expenses)}</p>
+
+                <button
+                  style={styles.button}
+                  onClick={() => setShowForm(true)}
+                >
+                  + Add Transaction
+                </button>
+              </section>
+            )}
+
+            {page === "Transactions" && (
+              <section style={styles.card}>
+                <h2>My Transactions</h2>
+
+                <button
+                  style={styles.button}
+                  onClick={() => setShowForm(true)}
+                >
+                  + Add Transaction
+                </button>
+
+                {transactions.length === 0 ? (
+                  <p style={{ marginTop: "20px" }}>
+                    No transactions yet. Add your first transaction!
+                  </p>
+                ) : (
+                  <div style={{ overflowX: "auto" }}>
+                    <table width="100%" cellPadding="12">
+                      <thead>
+                        <tr>
+                          <th align="left">Name</th>
+                          <th align="left">Category</th>
+                          <th>Date</th>
+                          <th>Type</th>
+                          <th>Amount</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {transactions.map(t => (
+                          <tr key={t.id}>
+                            <td>{t.title}</td>
+                            <td>{t.category}</td>
+                            <td>{t.date}</td>
+                            <td>{t.type}</td>
+                            <td>{money(t.amount)}</td>
+                            <td>
+                              <button
+                                onClick={() =>
+                                  setTransactions(prev =>
+                                    prev.filter(x => x.id !== t.id)
+                                  )
+                                }
+                                style={{
+                                  ...styles.button,
+                                  background: "#e05252"
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            )}
+          </main>
+        </>
+      )}
+
+      {showForm && current.role === "user" && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "#0008",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "20px"
+        }}>
+          <form
+            onSubmit={addTransaction}
+            style={{
+              ...styles.card,
+              width: "100%",
+              maxWidth: "400px"
+            }}
+          >
+            <h2>Add Transaction</h2>
+
+            <label>Transaction Name</label>
+            <input
+              style={styles.input}
+              value={form.title}
+              onChange={e =>
+                setForm({ ...form, title: e.target.value })
+              }
+              required
+            />
+
+            <label>Amount (₹)</label>
+            <input
+              style={styles.input}
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={form.amount}
+              onChange={e =>
+                setForm({ ...form, amount: e.target.value })
+              }
+              required
+            />
+
+            <label>Transaction Type</label>
+            <select
+              style={styles.input}
+              value={form.type}
+              onChange={e =>
+                setForm({
+                  ...form,
+                  type: e.target.value,
+                  category: e.target.value === "income"
+                    ? "Salary"
+                    : "Food"
+                })
+              }
+            >
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+
+            <label>Category</label>
+            <select
+              style={styles.input}
+              value={form.category}
+              onChange={e =>
+                setForm({ ...form, category: e.target.value })
+              }
+            >
+              {(form.type === "income"
+                ? ["Salary", "Business", "Other Income"]
+                : ["Food", "Shopping", "Transport", "Bills", "Health", "Entertainment", "Other"]
+              ).map(c => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+
+            <button
+              style={{ ...styles.button, marginRight: "10px" }}
+              type="submit"
+            >
+              Save
+            </button>
+
+            <button
+              style={{
+                ...styles.button,
+                background: "#777"
+              }}
+              type="button"
+              onClick={() => setShowForm(false)}
+            >
+              Cancel
+            </button>
+          </form>
+        </div>
+      )}
+
+      <footer style={{
+        textAlign: "center",
+        padding: "25px",
+        color: "#777"
+      }}>
+        © 2026 ExpenseEase | Personal Finance Management
+      </footer>
+    </div>
+  );
 }
